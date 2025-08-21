@@ -16,7 +16,7 @@ func main() {
 	servers.Ctx = context.Background()
 	servers.Db = database.NewConnection()
 	app := fiber.New(fiber.Config{
-		AppName: "Telemed Backend",
+		AppName: "Telemedicine Backend",
 	})
 	app.Use(logger.New())
 	app.Get("/admin/healthchecker", func(c *fiber.Ctx) error {
