@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"fmt"
 	"log"
 	"strings"
 	"telemed/config"
@@ -29,21 +30,31 @@ func JWTProtected() fiber.Handler {
 			})
 		}
 		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+			}
 			return []byte(secret), nil
 		})
 		if err != nil || !token.Valid {
+			log.Printf("Token validation error: %v", err)
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 				"success": false,
 				"message": "Invalid or expired token",
 			})
 		}
 
-		// set claims in context for handlers to use
+		// Validate and set usertag in context
 		if claims, ok := token.Claims.(jwt.MapClaims); ok {
-			c.Locals("usertag", claims["usertag"])
-			c.Locals("role", claims["role"])
+			if usertag, ok := claims["usertag"].(string); ok && usertag != "" {
+				c.Locals("usertag", usertag)
+			} else {
+				log.Println("Usertag missing or invalid in token claims")
+				return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+					"success": false,
+					"message": "Unauthorized: Please log in again",
+				})
+			}
 		}
-
 		return c.Next()
 	}
 }

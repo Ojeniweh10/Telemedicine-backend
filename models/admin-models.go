@@ -176,6 +176,7 @@ type Inventory struct {
 	ProductName       string  `json:"product_name"`
 	Milligrams        string  `json:"milligrams"`
 	Price             float64 `json:"price"`
+	Quantity          int     `json:"quantity"`
 	Product_image_url string  `json:"product_image_url"`
 }
 

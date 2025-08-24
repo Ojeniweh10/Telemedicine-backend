@@ -52,6 +52,7 @@ CREATE TABLE inventory (
     name VARCHAR(255),
     milligram VARCHAR(50),
     price NUMERIC(10, 2),
+    quantity INTEGER DEFAULT 0,
     product_image_url TEXT
 );
 
@@ -142,4 +143,14 @@ CREATE TABLE appointments (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (patient_tag) REFERENCES users(usertag) ON DELETE CASCADE,
     FOREIGN KEY (doctor_tag) REFERENCES doctors(doctortag) ON DELETE CASCADE
+);
+
+CREATE TABLE carts (
+    cart_id SERIAL PRIMARY KEY,
+    usertag VARCHAR(50),
+    product_id INTEGER,
+    quantity INTEGER,
+    FOREIGN KEY (usertag) REFERENCES users(usertag) ON DELETE CASCADE,
+    FOREIGN KEY (product_id) REFERENCES inventory(product_id) ON DELETE RESTRICT
+    ADD CONSTRAINT unique_usertag_product UNIQUE (usertag, product_id)
 );

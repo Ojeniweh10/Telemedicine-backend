@@ -49,6 +49,7 @@ const (
 	LOGIN_SUCCESSFUL       = "login successful"
 	OTP_SENT               = "otp has been sent to your email"
 	ACCOUNT_NON_EXISTENT   = "admin account does not exist"
+	USER_NON_EXISTENT      = "user does not exist"
 	INVALID_PASSWORD       = "invalid password"
 	ACCOUNT_CREATED        = "account created successfully"
 	OTP_VERIFIED           = "otp verified successfully"

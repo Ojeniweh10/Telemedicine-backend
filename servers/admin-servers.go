@@ -54,7 +54,7 @@ func (AdminServer) Login(data models.Adminlogin) (any, error) {
 func (AdminServer) VerifyOTP(data models.OTPVerify) (any, error) {
 	var dbOtp string
 	var otpExpiryTime time.Time
-	err := Db.QueryRow(Ctx, "SELECT otp, otp_expiry, role FROM admins WHERE admintag = $1", data.Usertag).Scan(&dbOtp, &otpExpiryTime)
+	err := Db.QueryRow(Ctx, "SELECT otp, otp_expiry FROM admins WHERE admintag = $1", data.Usertag).Scan(&dbOtp, &otpExpiryTime)
 	if err != nil {
 		log.Println(err)
 		return nil, errors.New("invalid email or OTP")
@@ -742,9 +742,9 @@ func (AdminServer) GetInventory(data models.GetDataReq) (any, error) {
 	var sqlStatement string
 
 	if data.Search == "" {
-		sqlStatement = "SELECT product_id, name, milligram, price, product_image_url FROM inventory"
+		sqlStatement = "SELECT product_id, name, milligram, price, quantity product_image_url FROM inventory"
 	} else {
-		sqlStatement = fmt.Sprintf("SELECT product_id, name, milligram, price, product_image_url FROM inventory WHERE(name ILIKE $%d OR milligram ILIKE $%d OR price ILIKE $%d)", argIndex, argIndex, argIndex)
+		sqlStatement = fmt.Sprintf("SELECT product_id, name, milligram, price, quantity product_image_url FROM inventory WHERE(name ILIKE $%d OR milligram ILIKE $%d OR price ILIKE $%d)", argIndex, argIndex, argIndex)
 		args = append(args, "%"+data.Search+"%")
 		argIndex++
 	}
@@ -759,7 +759,7 @@ func (AdminServer) GetInventory(data models.GetDataReq) (any, error) {
 
 	for rows.Next() {
 		var item models.Inventory
-		if err := rows.Scan(&item.ProductID, &item.ProductName, &item.Milligrams, &item.Price, &item.Product_image_url); err != nil {
+		if err := rows.Scan(&item.ProductID, &item.ProductName, &item.Milligrams, &item.Price, &item.Quantity, &item.Product_image_url); err != nil {
 			log.Println("Failed to scan inventory item:", err)
 			return nil, errors.New(responses.SOMETHING_WRONG)
 		}
@@ -774,8 +774,8 @@ func (AdminServer) GetInventory(data models.GetDataReq) (any, error) {
 
 func (AdminServer) GetInventoryByID(productID string) (any, error) {
 	var item models.Inventory
-	err := Db.QueryRow(Ctx, "SELECT product_id, name, milligram, price, product_image_url FROM inventory WHERE product_id = $1", productID).
-		Scan(&item.ProductID, &item.ProductName, &item.Milligrams, &item.Price, &item.Product_image_url)
+	err := Db.QueryRow(Ctx, "SELECT product_id, name, milligram, price, quantity,  product_image_url FROM inventory WHERE product_id = $1", productID).
+		Scan(&item.ProductID, &item.ProductName, &item.Milligrams, &item.Price, &item.Quantity, &item.Product_image_url)
 	if err != nil {
 		log.Println("Failed to fetch inventory item by ID:", err)
 		if err.Error() == "no rows in result set" {
@@ -789,8 +789,8 @@ func (AdminServer) GetInventoryByID(productID string) (any, error) {
 
 func (AdminServer) CreateInventory(data models.Inventory) (any, error) {
 	data.ProductID = utils.GenerateUUID(data.ProductName) // Generate a unique ID based on product name
-	query := `INSERT INTO inventory ( product_id, name, milligram, price, product_image_url) VALUES ($1, $2, $3, $4)`
-	_, err := Db.Exec(Ctx, query, data.ProductID, data.ProductName, data.Milligrams, data.Price, data.Product_image_url)
+	query := `INSERT INTO inventory ( product_id, name, milligram, price, quantity, product_image_url) VALUES ($1, $2, $3, $4)`
+	_, err := Db.Exec(Ctx, query, data.ProductID, data.ProductName, data.Milligrams, data.Price, data.Quantity, data.Product_image_url)
 	if err != nil {
 		log.Println("Failed to create inventory item:", err)
 		return nil, errors.New(responses.SOMETHING_WRONG)
@@ -800,8 +800,8 @@ func (AdminServer) CreateInventory(data models.Inventory) (any, error) {
 }
 
 func (AdminServer) UpdateInventory(payload models.Inventory) (any, error) {
-	query := `UPDATE inventory SET name = $1, milligram = $2, price = $3, product_image_url = $4 WHERE product_id = $5`
-	_, err := Db.Exec(Ctx, query, payload.ProductName, payload.Milligrams, payload.Price, payload.Product_image_url, payload.ProductID)
+	query := `UPDATE inventory SET name = $1, milligram = $2, price = $3, product_image_url = $4, quantity = $5 WHERE product_id = $6`
+	_, err := Db.Exec(Ctx, query, payload.ProductName, payload.Milligrams, payload.Price, payload.Product_image_url, payload.Quantity, payload.ProductID)
 	if err != nil {
 		log.Println("Failed to update inventory item:", err)
 		return nil, errors.New(responses.SOMETHING_WRONG)
