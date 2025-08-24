@@ -177,7 +177,7 @@ func (Controller) AddToCart(c *fiber.Ctx) error {
 	}
 	data.ProductID, err = strconv.Atoi(ProductID)
 	if err != nil {
-		log.Printf("failed to convert string to int for product id", err)
+		log.Println("failed to convert string to int for product id", err)
 		return responses.ErrorResponse(c, responses.SOMETHING_WRONG, 400)
 	}
 	err = UserServer.AddToCart(data)
