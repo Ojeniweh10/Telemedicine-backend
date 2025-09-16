@@ -1,4 +1,4 @@
-##Helcare Backend (Work-in-Progress)
+**Helcare Backend (Work-in-Progress)**
 
 Helcare is a proposed healthcare platform designed to connect patients, doctors, and admins. The idea was to create a system where:
 
@@ -12,7 +12,7 @@ The system was meant to support Web + Mobile clients, with a long-term plan of i
 
 I worked on the backend system (Golang + Fiber) for about 60% of the project. While I didn’t finish all features, I built core modules and learned a lot in the process.
 
-✅ Features Implemented
+**✅ Features Implemented**
 
 Authentication & Authorization using JWT
 
@@ -36,7 +36,7 @@ Database Transactions to ensure financial consistency
 
 Error Logging & Observability groundwork
 
-##🔑 Key Learnings
+**🔑 Key Learnings**
 
 Designing clean authentication flows (including secure password resets).
 
@@ -48,12 +48,12 @@ Structuring backend code for reusability and separation of concerns.
 
 The importance of observability (logs & alerts) in financial/healthcare systems.
 
-##⚠️ Status
+**⚠️ Status**
 
 This project is currently paused at ~60% completion. The repo is being archived as a portfolio piece.
 Instead of finishing, I chose to document what I built and what I learned, and move on to projects that better align with my day-to-day use and long-term goals.
 
-🛠️ Tech Stack
+**🛠️ Tech Stack**
 
 Language: Go (Golang)
 
