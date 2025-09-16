@@ -69,4 +69,6 @@ const (
 	WITHDRAWAL_INITIATED     = "withdrawal initiated successfully"
 	INVALID_PIN			= "invalid transaction pin"
 	TRANSFER_FAILED ="transfer failed"
+	INVALID_TOKEN		= "invalid or expired token"
+	LOGOUT_SUCCESSFUL = "logout successful"
 )

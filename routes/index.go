@@ -11,7 +11,7 @@ var Controller controllers.Controller
 var WalletController controllers.WalletController
 
 func Routes(app *fiber.App) {
-	//put in oauth feature once the app has been deployed
+	//onboarding feature, put in oauth feature once the app has been deployed
 	app.Post("/verify-email", Controller.Verifyemail)
 	app.Post("/resend-email-otp", Controller.SendEmailOTP)
 	app.Post("/otp", Controller.VerifyOtp)
@@ -20,6 +20,9 @@ func Routes(app *fiber.App) {
 	//dashboard , protected with jwt middleware
 	app.Get("/get-doctors", middleware.JWTProtected(), Controller.FetchDoctors) //fetching the doctors so as to book an appointment
 	app.Post("/book-appointment", middleware.JWTProtected(), Controller.BookAppointment)
+	app.Get("/appointments", middleware.JWTProtected(), Controller.FetchAppointment)
+	//next endpoint after fetching appointments is to get on a video call to start the consultation
+	app.Post("rate-doctor", middleware.JWTProtected(), Controller.RateDoctor)
 	app.Get("/medications", middleware.JWTProtected(), Controller.FetchMedications)
 	app.Get("/pharmacies", middleware.JWTProtected(), Controller.FetchPharmacies)
 	//cart functionality
@@ -37,4 +40,9 @@ func Routes(app *fiber.App) {
 	app.Get("/wallet/accounts", middleware.JWTProtected(), WalletController.FetchPayoutAccounts)
 	app.Get("/payment/callback", WalletController.PaymentCallback) //paystack will redirect to this endpoint after payment
 	app.Post("/paystack/webhook", WalletController.PaystackWebhook)
+	//profile management
+	app.Get("/profile", middleware.JWTProtected(), Controller.FetchProfile)
+	app.Patch("/profile", middleware.JWTProtected(), Controller.UpdateProfile)
+	app.Post("/update-password", middleware.JWTProtected(), Controller.SendChangePasswordOTP)
+	app.Post("change-pwd/otp", middleware.JWTProtected(), Controller.ChangePassword)
 }

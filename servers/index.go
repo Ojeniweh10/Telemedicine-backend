@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"strings"
 	"telemed/models"
 	"telemed/responses"
 	"telemed/utils"
@@ -261,6 +262,41 @@ func (UserServer) BookAppointment(data models.BookAppointment) (interface{}, err
 	return resp, nil
 }
 
+func (UserServer) GetAppointments(usertag string) (any, error) {
+	var resp []models.GetAppointmentsResp
+	rows, err := Db.Query(Ctx, "SELECT appointment_id, patient_tag, doctor_tag, scheduled_at, reason, status FROM appointments WHERE patient_tag = $1 ORDER BY created_at DESC", usertag)
+	if err != nil {
+		log.Println("Failed to fetch appointments:", err)
+		return nil, errors.New(responses.SOMETHING_WRONG)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var appointment models.GetAppointmentsResp
+		if err := rows.Scan(&appointment.AppointmentID, &appointment.PatientTag, &appointment.DoctorTag, &appointment.Scheduled_at, &appointment.Reason, &appointment.Status); err != nil {
+			log.Println("Failed to scan appointment:", err)
+			return nil, errors.New(responses.SOMETHING_WRONG)
+		}
+		resp = append(resp, appointment)
+	}
+	if err := rows.Err(); err != nil {
+		log.Println("Error iterating over appointments:", err)
+		return nil, errors.New(responses.SOMETHING_WRONG)
+	}
+	return resp, nil
+}
+
+func (UserServer) RateDoctor(data models.RateDoctor) (any, error) {
+	err := Db.QueryRow(Ctx,`INSERT INTO reviews (user_tag, doctor_tag, star_rating, review, status)
+		 VALUES ($1, $2, $3, $4, 'pending')`,data.Usertag, data.Doctortag, data.Rating, data.Review)
+	if err != nil {
+		log.Printf("Failed to insert into reviews: %v", err)
+		return nil, errors.New(responses.SOMETHING_WRONG)
+	}
+	return map[string]interface{}{
+		"message": "review submitted successfully",
+	}, nil
+}
+
 func (UserServer) GetMedications(data models.GetDataReq) (any, error) {
 	var resp []models.GetMedicationsResp
 	var args []any
@@ -493,4 +529,127 @@ func (UserServer) GetBillingDetails(Usertag string) (any, error) {
 		return nil, errors.New(responses.SOMETHING_WRONG)
 	}
 	return resp, nil
+}
+
+
+func (UserServer) GetProfile(Usertag string) (any, error) {
+	var resp models.UserProfile
+	query := `SELECT usertag, firstname, lastname, email, phone_no, gender, date_of_birth, photo_url FROM users WHERE usertag = $1` 
+	err := Db.QueryRow(Ctx, query, Usertag).Scan(
+		&resp.Usertag,
+		&resp.Firstname,
+		&resp.Lastname,
+		&resp.Email,
+		&resp.Phone_no,
+		&resp.Gender,
+		&resp.Dob,
+		&resp.Photo_url)
+	if err != nil {
+		log.Println("Failed to fetch user profile for user: ", Usertag, err)
+		return nil, errors.New(responses.SOMETHING_WRONG)
+	}
+	return resp, nil
+}
+
+func (UserServer) UpdateProfile(data models.UserProfile) (any, error) {
+	fields := []string{}
+	args := []interface{}{}
+	argIdx := 1
+	// Define all possible updates in a slice (value, columnName)
+	updates := []struct {
+		value string
+		name  string
+	}{
+		{data.Firstname, "firstname"},
+		{data.Lastname, "lastname"},
+		{data.Email, "email"},
+		{data.Phone_no, "phone_no"},
+		{data.Gender, "gender"},
+		{data.Dob, "date_of_birth"},
+		{data.Photo_url, "photo_url"},
+	}
+	// Loop through updates and add only non-empty fields
+	for _, u := range updates {
+		if u.value != "" {
+			fields = append(fields, fmt.Sprintf("%s = $%d", u.name, argIdx))
+			args = append(args, u.value)
+			argIdx++
+		}
+	}
+	// If no fields provided, return error
+	if len(fields) == 0 {
+		return nil, errors.New("no fields to update")
+	}
+	// Add usertag as last argument for WHERE clause
+	args = append(args, data.Usertag)
+	query := fmt.Sprintf(
+		"UPDATE users SET %s WHERE usertag = $%d",
+		strings.Join(fields, ", "),
+		argIdx,
+	)
+
+	// Execute query
+	_, err := Db.Exec(Ctx, query, args...)
+	if err != nil {
+		log.Println("Failed to update user profile:", err)
+		return nil, errors.New(responses.SOMETHING_WRONG)
+	}
+	// Return success response
+	return map[string]interface{}{
+		"message": "profile updated successfully",
+	}, nil
+}
+
+func (UserServer) SendChangePasswordOTP(usertag string) (any, error) {
+	var Email string
+	if err := Db.QueryRow(Ctx, "SELECT email FROM users WHERE usertag = $1", usertag).Scan(&Email); err != nil {
+		return nil, errors.New("email not found")
+	}
+	otp, err := utils.GenerateOTP()
+	if err != nil {
+		log.Println("Failed to generate OTP:", err)
+		return nil, errors.New("failed to generate OTP")
+	}
+	_, err = Db.Exec(Ctx, "UPDATE users SET otp = $1, otp_expiry = NOW()+ INTERVAL '5 minutes' WHERE usertag = $2", otp, usertag)
+	if err != nil {
+		log.Println("failed to save OTP", err)
+		return nil, errors.New(responses.SOMETHING_WRONG)
+	}
+
+	err = utils.SendEmailOTP(Email, otp)
+	if err != nil {
+		log.Println("Failed to send OTP email:", err)
+		return nil, errors.New(responses.SOMETHING_WRONG)
+	}
+	return usertag, nil
+}
+
+
+func (UserServer) ChangePassword(data models.ChangePasswordReq) (any, error) {
+	var hash string
+	err := Db.QueryRow(Ctx, "SELECT password FROM users WHERE usertag = $1", data.Usertag).Scan(&hash)
+	if err != nil {
+		log.Println(err)
+		return nil, errors.New(responses.USER_NON_EXISTENT)
+	}
+
+	pwdCheck := utils.VerifyPassword(data.CurrentPassword, hash)
+	if !pwdCheck {
+		log.Println("Invalid old password for user")
+		return nil, errors.New(responses.INVALID_PASSWORD)
+	}
+	newPassword, err := utils.HashPassword(data.NewPassword)
+	if err != nil {
+		log.Println("Unable to hash new password")
+		return nil, errors.New(responses.SOMETHING_WRONG)
+	}
+	_, err = Db.Exec(Ctx, "UPDATE users SET password = $1 WHERE usertag = $2", newPassword, data.Usertag)
+	if err != nil {
+		log.Println("failed to update user password", err)
+		return nil, errors.New(responses.SOMETHING_WRONG)
+	}
+
+	return map[string]interface{}{
+		"message": "password updated successfully",
+	}, nil
 }

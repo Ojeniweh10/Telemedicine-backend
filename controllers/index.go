@@ -118,6 +118,33 @@ func (Controller) BookAppointment(c *fiber.Ctx) error {
 	return responses.SuccessResponse(c, responses.DATA_CREATED, res, 200)
 }
 
+func (Controller) FetchAppointment(c *fiber.Ctx) error {
+	usertag := c.Locals("usertag").(string)
+	res, err := UserServer.GetAppointments(usertag)
+	if err != nil {
+		return responses.ErrorResponse(c, err.Error(), 400)
+	}
+	return responses.SuccessResponse(c, responses.DATA_FETCHED, res, 200)
+}
+
+func (Controller) RateDoctor(c *fiber.Ctx) error {
+	var data models.RateDoctor
+	if err := c.BodyParser(&data); err != nil {
+		return responses.ErrorResponse(c, responses.BAD_DATA, 400)
+	}
+	data.Usertag = c.Locals("usertag").(string)
+
+	if data.Doctortag == "" || data.Rating < 1 || data.Rating > 5 {
+		return responses.ErrorResponse(c, responses.INCOMPLETE_DATA, 400)
+	}
+
+	res, err := UserServer.RateDoctor(data)
+	if err != nil {
+		return responses.ErrorResponse(c, err.Error(), 400)
+	}
+	return responses.SuccessResponse(c, responses.DATA_CREATED, res, 200)
+}
+
 func (Controller) FetchMedications(c *fiber.Ctx) error {
 	var data models.GetDataReq
 	if c.Query("page") != "" {
@@ -250,4 +277,53 @@ func (Controller) FetchBillingDetails(c *fiber.Ctx) error {
 		return responses.ErrorResponse(c, err.Error(), 400)
 	}
 	return responses.SuccessResponse(c, responses.DATA_FETCHED, res, 200)
+}
+
+func (Controller) FetchProfile(c *fiber.Ctx) error {
+	Usertag := c.Locals("usertag").(string)
+	res, err := UserServer.GetProfile(Usertag)
+	if err != nil {
+		return responses.ErrorResponse(c, err.Error(), 400)
+	}
+	return responses.SuccessResponse(c, responses.DATA_FETCHED, res, 200)
+}
+
+func (Controller) UpdateProfile(c *fiber.Ctx) error {
+	var data models.UserProfile
+	if err := c.BodyParser(&data); err != nil {
+		return responses.ErrorResponse(c, responses.BAD_DATA, 400)
+	}
+	data.Usertag = c.Locals("usertag").(string)
+	res, err := UserServer.UpdateProfile(data)
+	if err != nil {
+		return responses.ErrorResponse(c, err.Error(), 400)
+	}
+	return responses.SuccessResponse(c, responses.DATA_UPDATED, res, 200)	
+}
+func (Controller) SendChangePasswordOTP(c *fiber.Ctx) error {
+	usertag := c.Locals("usertag").(string)
+	if usertag == "" {
+		return responses.ErrorResponse(c, responses.INCOMPLETE_DATA, 400)
+	}
+	res, err := UserServer.SendChangePasswordOTP(usertag)
+	if err != nil {
+		return responses.ErrorResponse(c, err.Error(), 400)
+	}
+	return responses.SuccessResponse(c, responses.OTP_SENT, res, 200)
+}
+
+func (Controller) ChangePassword(c *fiber.Ctx) error {
+	var data models.ChangePasswordReq
+	if err := c.BodyParser(&data); err != nil {
+		return responses.ErrorResponse(c, responses.BAD_DATA, 400)
+	}
+	data.Usertag = c.Locals("usertag").(string)
+	if data.CurrentPassword == "" || data.NewPassword == "" {
+		return responses.ErrorResponse(c, responses.INCOMPLETE_DATA, 400)
+	}
+	res, err := UserServer.ChangePassword(data)
+	if err != nil {
+		return responses.ErrorResponse(c, err.Error(), 400)
+	}
+	return responses.SuccessResponse(c, responses.OTP_SENT, res, 200)
 }

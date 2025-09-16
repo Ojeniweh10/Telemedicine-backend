@@ -41,6 +41,7 @@ type BookAppointment struct {
 	Reason       string    `json:"reason"`
 }
 
+
 type BookAppointmentResp struct {
 	AppointmentID    string    `json:"appointment_id"`
 	Doctortag        string    `json:"doctortag"`
@@ -48,6 +49,26 @@ type BookAppointmentResp struct {
 	Specialization   string    `json:"specialization"`
 	Doctor_photo_url string    `json:"Doctor_photo_url"`
 	Scheduled_at     time.Time `json:"appointment_date"`
+}
+
+type GetAppointmentsResp struct {
+	AppointmentID    string    `json:"appointment_id"`
+	PatientTag      string    `json:"usertag"`
+	DoctorTag        string    `json:"doctortag"`
+	Fullname         string    `json:"fullname"`
+	Specialization   string    `json:"specialization"`
+	Doctor_photo_url string    `json:"Doctor_photo_url"`
+	Scheduled_at     time.Time `json:"appointment_date"`
+	Status           string    `json:"status"`
+	Reason           string    `json:"reason"`
+	Created_at       time.Time `json:"created_at"`
+}
+
+type RateDoctor struct {
+	Usertag    string  `json:"usertag"`
+	Doctortag  string  `json:"doctortag"`
+	Rating     int `json:"rating"`
+	Review     string  `json:"review"`
 }
 
 type GetMedicationsResp struct {
@@ -288,4 +309,32 @@ type WithdrawReq struct {
 	RecipientCode string `json:"recipient_code"`
 	Amount  float64 `json:"amount"`
 	Transaction_pin  string  `json:"transaction_pin"`
+}
+
+type UserProfile struct {
+	Usertag    string `json:"usertag"`
+	Firstname  string `json:"firstname"`
+	Lastname   string `json:"lastname"`
+	Email      string `json:"email"`
+	Phone_no   string `json:"phone_no"`
+	Gender    string  `json:"gender"`
+	Dob       string  `json:"dob"`
+	Photo_url string `json:"photo_url"`
+}
+
+type UpdateProfileReq struct {
+	Usertag    string `json:"usertag"`
+	Firstname  string `json:"firstname"`
+	Lastname   string `json:"lastname"`
+	Email      string `json:"email"`
+	Phone_no   string `json:"phone_no"`
+	Gender    string  `json:"gender"`
+	Dob       string  `json:"dob"`
+	Photo_url string `json:"photo_url"`
+}
+
+type ChangePasswordReq struct {
+	Usertag         string `json:"usertag"`
+	CurrentPassword string `json:"current_password"`
+	NewPassword     string `json:"new_password"`
 }
