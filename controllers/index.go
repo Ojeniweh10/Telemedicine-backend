@@ -105,7 +105,7 @@ func (Controller) BookAppointment(c *fiber.Ctx) error {
 	}
 	data.Usertag = c.Locals("usertag").(string)
 
-	if data.Doctortag == "" || data.Reason == "" {
+	if data.Doctortag == "" || data.Reason == "" || data.Amount <= 0 {
 		return responses.ErrorResponse(c, responses.INCOMPLETE_DATA, 400)
 	}
 	if data.Scheduled_at.Before(time.Now()) {

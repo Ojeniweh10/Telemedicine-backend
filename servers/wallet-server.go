@@ -621,3 +621,57 @@ func (WalletServer) Withdraw(data models.WithdrawReq) (any, error) {
         "reference": reference,
     }, nil
 }
+
+
+func (WalletServer) InitiateTransfer(tx pgx.Tx, fromTag, toTag string, amount float64, narration string) (string, error) {
+	// Transaction reference
+	reference := fmt.Sprintf("txn_%s_%s_%d", fromTag, toTag, time.Now().Unix())
+
+	// Lock sender wallet row
+	var balance float64
+	err := tx.QueryRow(Ctx,
+		`SELECT balance FROM wallets WHERE usertag=$1 FOR UPDATE`, fromTag).
+		Scan(&balance)
+	if err != nil {
+		return "", errors.New(responses.SOMETHING_WRONG)
+	}
+	if balance < amount {
+		return "", errors.New("insufficient funds")
+	}
+
+	// Deduct sender
+	_, err = tx.Exec(Ctx,
+		`UPDATE wallets SET balance = balance - $1 WHERE usertag=$2`,
+		amount, fromTag)
+	if err != nil {
+		return "", errors.New(responses.SOMETHING_WRONG)
+	}
+
+	// Credit receiver
+	_, err = tx.Exec(Ctx,
+		`UPDATE wallets SET balance = balance + $1 WHERE usertag=$2`,
+		amount, toTag)
+	if err != nil {
+		return "", errors.New(responses.SOMETHING_WRONG)
+	}
+
+	// Insert debit transaction
+	_, err = tx.Exec(Ctx,
+		`INSERT INTO wallet_transactions (usertag, amount, transaction_type, transaction_reference, status, created_at, narration)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+		fromTag, amount, "debit", reference, "completed", time.Now(), narration)
+	if err != nil {
+		return "", errors.New(responses.SOMETHING_WRONG)
+	}
+
+	// Insert credit transaction
+	_, err = tx.Exec(Ctx,
+		`INSERT INTO wallet_transactions (usertag, amount, transaction_type, transaction_reference, status, created_at, narration)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+		toTag, amount, "credit", reference, "completed", time.Now(), narration)
+	if err != nil {
+		return "", errors.New(responses.SOMETHING_WRONG)
+	}
+
+	return reference, nil
+}

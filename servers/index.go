@@ -16,6 +16,8 @@ import (
 
 type UserServer struct{}
 
+var walletServer WalletServer
+
 func (UserServer) Verifyemail(data models.Verifyemail) (any, error) {
 	var resp models.Verifyemailresp
 	resp.Usertag = utils.GenerateUsertag(data.Firstname)
@@ -163,38 +165,46 @@ func (UserServer) GetDoctors() (any, error) {
 }
 
 func (UserServer) BookAppointment(data models.BookAppointment) (interface{}, error) {
-	var count, appointmentID int
-	var availability []string
-	var resp models.BookAppointmentResp
-	err := Db.QueryRow(Ctx,
-		`SELECT COUNT(*) FROM appointments WHERE patient_tag = $1 AND status IN ('pending', 'confirmed')`,
-		data.Usertag).Scan(&count)
-	if err != nil {
-		log.Printf("Failed to check existing appointments: %v", err)
-		return nil, errors.New(responses.SOMETHING_WRONG)
-	}
-	if count > 0 {
-		return nil, errors.New("you have an open appointment")
-	}
+	var (
+		count         int
+		appointmentID int
+		availability  []string
+		resp          models.BookAppointmentResp
+	)
 	// Start a transaction
 	tx, err := Db.BeginTx(Ctx, pgx.TxOptions{})
 	if err != nil {
-		log.Printf("Failed to start transaction: %v", err)
 		return nil, errors.New(responses.SOMETHING_WRONG)
 	}
 	defer tx.Rollback(Ctx)
-	// Check if the requested time slot is available
+
+	// Check existing appointment
 	err = tx.QueryRow(Ctx,
-		`SELECT availability FROM doctors WHERE doctortag = $1`,
-		data.Doctortag).Scan(&availability)
-	if err == pgx.ErrNoRows {
-		return nil, errors.New("doctor not found")
-	}
+		`SELECT COUNT(*) FROM appointments 
+		 WHERE patient_tag = $1 AND status IN ('pending','confirmed')`,
+		data.Usertag).Scan(&count)
 	if err != nil {
-		log.Printf("Failed to get doctor availability: %v", err)
 		return nil, errors.New(responses.SOMETHING_WRONG)
 	}
-	requestedTime := data.Scheduled_at.Format(time.RFC3339) // Convert to ISO 8601
+	if count > 0 {
+		return nil, errors.New("you already have an open appointment")
+	}
+
+	// Handle payment via wallet
+	ref, err := walletServer.InitiateTransfer(tx, data.Usertag, data.Doctortag, data.Amount, "Appointment payment")
+	if err != nil {
+		return nil, err
+	}
+
+	// Check doctor availability
+	err = tx.QueryRow(Ctx,
+		`SELECT availability FROM doctors WHERE doctortag=$1 FOR UPDATE`,
+		data.Doctortag).Scan(&availability)
+	if err != nil {
+		return nil, errors.New(responses.SOMETHING_WRONG)
+	}
+
+	requestedTime := data.Scheduled_at.Format(time.RFC3339)
 	timeAvailable := false
 	for _, slot := range availability {
 		if slot == requestedTime {
@@ -203,64 +213,49 @@ func (UserServer) BookAppointment(data models.BookAppointment) (interface{}, err
 		}
 	}
 	if !timeAvailable {
-		return nil, errors.New("selected time slot is not available")
+		return nil, errors.New("time slot not available")
 	}
 
-	// Check for existing appointment at the same time
+	// Insert appointment
 	err = tx.QueryRow(Ctx,
-		`SELECT COUNT(*) FROM appointments WHERE doctor_tag = $1 AND scheduled_at = $2 AND status IN ('pending', 'confirmed')`,
-		data.Doctortag, data.Scheduled_at).Scan(&count)
+		`INSERT INTO appointments (patient_tag, doctor_tag, scheduled_at, reason, status, payment_reference)
+		 VALUES ($1,$2,$3,$4,'pending',$5) RETURNING appointment_id`,
+		data.Usertag, data.Doctortag, data.Scheduled_at, data.Reason, ref).Scan(&appointmentID)
 	if err != nil {
-		log.Printf("Failed to check appointment conflicts: %v", err)
 		return nil, errors.New(responses.SOMETHING_WRONG)
 	}
-	if count > 0 {
-		return nil, errors.New("doctor is not available at this time")
-	}
-	// Insert appointment and get appointment_id
-	err = tx.QueryRow(Ctx,
-		`INSERT INTO appointments (patient_tag, doctor_tag, scheduled_at, reason, status)
-		 VALUES ($1, $2, $3, $4, 'pending')
-		 RETURNING appointment_id`,
-		data.Usertag, data.Doctortag, data.Scheduled_at, data.Reason).Scan(&appointmentID)
-	if err != nil {
-		log.Printf("Failed to insert into appointments: %v", err)
-		return nil, errors.New(responses.SOMETHING_WRONG)
-	}
-	// Update doctor availability (remove booked slot)
+
+	// Update doctor availability
 	_, err = tx.Exec(Ctx,
-		`UPDATE doctors SET availability = availability - $1 WHERE doctortag = $2`,
-		[]string{requestedTime}, data.Doctortag)
+		`UPDATE doctors SET availability = array_remove(availability,$1) WHERE doctortag=$2`,
+		requestedTime, data.Doctortag)
 	if err != nil {
-		log.Printf("Failed to update doctor availability: %v", err)
 		return nil, errors.New(responses.SOMETHING_WRONG)
 	}
 
-	// Query doctor details
+	// Doctor details
 	err = tx.QueryRow(Ctx,
-		`SELECT fullname, specialization, profile_pic_url FROM doctors WHERE doctortag = $1`,
-		data.Doctortag).Scan(&resp.Fullname, &resp.Specialization, &resp.Doctor_photo_url)
-	if err == sql.ErrNoRows {
-		return nil, errors.New("doctor not found")
-	}
+		`SELECT fullname, specialization, profile_pic_url 
+		 FROM doctors WHERE doctortag=$1`,
+		data.Doctortag).
+		Scan(&resp.Fullname, &resp.Specialization, &resp.Doctor_photo_url)
 	if err != nil {
-		log.Printf("Failed to get doctor data: %v", err)
 		return nil, errors.New(responses.SOMETHING_WRONG)
 	}
 
-	// Set response fields
+	// Commit transaction
+	if err := tx.Commit(Ctx); err != nil {
+		return nil, errors.New(responses.SOMETHING_WRONG)
+	}
+
+	// Response
 	resp.AppointmentID = fmt.Sprintf("%d", appointmentID)
 	resp.Doctortag = data.Doctortag
 	resp.Scheduled_at = data.Scheduled_at
 
-	// Commit transaction
-	if err := tx.Commit(Ctx); err != nil {
-		log.Printf("Failed to commit transaction: %v", err)
-		return nil, errors.New(responses.SOMETHING_WRONG)
-	}
-
 	return resp, nil
 }
+
 
 func (UserServer) GetAppointments(usertag string) (any, error) {
 	var resp []models.GetAppointmentsResp

@@ -39,6 +39,7 @@ type BookAppointment struct {
 	Doctortag    string    `json:"doctortag"`
 	Scheduled_at time.Time `json:"appointment_date"`
 	Reason       string    `json:"reason"`
+	Amount       float64   `json:"amount"`
 }
 
 
